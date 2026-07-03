@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Manajemen Barang & Penjualan</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        .notification-badge {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans antialiased">
+
+    <div class="container mx-auto p-4 max-w-7xl">
+        <header class="mb-6 flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">📦 Inventory & Sales System</h1>
+                <p class="text-sm text-gray-500">Kelola stok, kadaluwarsa, dan penjualan dalam satu tempat.</p>
+            </div>
+            <div id="realtime-clock" class="text-sm font-semibold text-gray-600"></div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-sm">
+                <div class="flex items-center mb-2">
+                    <span class="text-amber-600 font-bold text-lg mr-2">⚠️ Stok Menipis (&le; 5)</span>
+                    <span id="stok-alert-count" class="bg-amber-200 text-amber-800 text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                </div>
+                <ul id="stok-alert-list" class="text-sm text-amber-700 list-disc pl-5 space-y-1">
+                    <li class="list-none text-gray-400 italic">Semua stok barang aman.</li>
+                </ul>
+            </div>
+
+            <div class="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl shadow-sm">
+                <div class="flex items-center mb-2">
+                    <span class="text-rose-600 font-bold text-lg mr-2">⏳ Hampir Kadaluwarsa (&le; 30 Hari)</span>
+                    <span id="exp-alert-count" class="bg-rose-200 text-rose-800 text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                </div>
+                <ul id="exp-alert-list" class="text-sm text-rose-700 list-disc pl-5 space-y-1">
+                    <li class="list-none text-gray-400 italic">Tidak ada barang yang mendekati kadaluwarsa.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm h-fit">
+                <h2 id="form-title" class="text-lg font-bold text-gray-700 mb-4 border-b pb-2">➕ Tambah Barang Baru</h2>
+                <form id="product-form" class="space-y-4">
+                    <input type="hidden" id="item-id">
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">Nama Barang</label>
+                        <input type="text" id="nama" required class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-blue-500">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Stok Saat Ini</label>
+                            <input type="number" id="jumlah" min="0" required class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Harga (Rp)</label>
+                            <input type="number" id="harga" min="0" required class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-blue-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Tanggal Masuk</label>
+                            <input type="date" id="tgl-masuk" required class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Tanggal Expired</label>
+                            <input type="date" id="tgl-exp" required class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-blue-500">
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 pt-2">
+                        <button type="submit" id="btn-submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm transition shadow-md">Simpan Barang</button>
+                        <button type="button" id="btn-batal" class="hidden bg-gray-300 hover:bg-gray-400 text-gray-700 font-semibold px-4 py-2 rounded-lg text-sm transition" onclick="resetForm()">Batal</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm overflow-x-auto">
+                <h2 class="text-lg font-bold text-gray-700 mb-4 border-b pb-2">📋 Daftar Stok Gudang</h2>
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200 text-gray-600">
+                            <th class="p-3">Nama Barang</th>
+                            <th class="p-3 text-center">Stok</th>
+                            <th class="p-3">Harga</th>
+                            <th class="p-3">Log Tgl</th>
+                            <th class="p-3 text-center">Keluar / Terjual</th>
+                            <th class="p-3 text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="product-table-body" class="divide-y divide-gray-100 text-gray-700">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="mt-8 bg-white p-6 rounded-xl shadow-sm">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-lg font-bold text-gray-700">📜 Riwayat Transaksi & Penjualan</h2>
+                <button onclick="clearHistory()" class="text-xs text-rose-600 hover:underline">Hapus Semua Riwayat</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200 text-gray-600">
+                            <th class="p-3">Waktu</th>
+                            <th class="p-3">Nama Barang</th>
+                            <th class="p-3">Jenis Transaksi</th>
+                            <th class="p-3 text-center">Jumlah</th>
+                            <th class="p-3">Total Pendapatan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body" class="divide-y divide-gray-100 text-gray-600">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Inisialisasi Data Default jika localStorage kosong
+        let barangData = JSON.parse(localStorage.getItem('barangData')) || [
+            { id: 1, nama: "Susu UHT Cokelat", jumlah: 4, harga: 6500, tglMasuk: "2026-06-01", tglExp: "2026-07-20", keluar: 5, terjual: 5 },
+            { id: 2, nama: "Mie Instan Soto", jumlah: 25, harga: 3100, tglMasuk: "2026-05-10", tglExp: "2026-06-15", keluar: 10, terjual: 8 }
+        ];
+
+        let historyData = JSON.parse(localStorage.getItem('historyData')) || [];
+
+        const form = document.getElementById('product-form');
+        const tableBody = document.getElementById('product-table-body');
+        const historyBody = document.getElementById('history-table-body');
+
+        // Tampilkan Jam Realtime
+        setInterval(() => {
+            document.getElementById('realtime-clock').innerText = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' });
+        }, 1000);
+
+        // Simpan ke Local Storage
+        function saveData() {
+            localStorage.setItem('barangData', JSON.stringify(barangData));
+            localStorage.setItem('historyData', JSON.stringify(historyData));
+            renderAll();
+        }
+
+        // Format Rupiah
+        function formatRupiah(angka) {
+            return 'Rp ' + parseInt(angka).toLocaleString('id-ID');
+        }
+
+        // Jalankan Fungsi Render Utama
+        function renderAll() {
+            renderTable();
+            renderHistory();
+            checkNotifications();
+        }
+
+        // Render Tabel Barang
+        function renderTable() {
+            tableBody.innerHTML = '';
+            if(barangData.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 italic">Belum ada data barang. Silakan tambah baru.</td></tr>`;
+                return;
+            }
+
+            barangData.forEach((item) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition";
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold text-gray-900">${item.nama}</td>
+                    <td class="p-3 text-center">
+                        <span class="px-2 py-1 rounded text-xs font-bold ${item.jumlah <= 5 ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}">
+                            ${item.jumlah} Pcs
+                        </span>
+                    </td>
+                    <td class="p-3">${formatRupiah(item.harga)}</td>
+                    <td class="p-3 text-xs text-gray-500">
+                        In: ${item.tglMasuk}<br>
+                        <span class="${isNearExpired(item.tglExp) ? 'text-rose-600 font-bold' : ''}">Exp: ${item.tglExp}</span>
+                    </td>
+                    <td class="p-3 text-center text-xs">
+                        <div class="text-gray-500">Keluar: <strong>${item.keluar || 0}</strong></div>
+                        <div class="text-emerald-600">Terjual: <strong>${item.terjual || 0}</strong></div>
+                    </td>
+                    <td class="p-3 text-center space-y-1 md:space-y-0">
+                        <button onclick="prosesKeluar(${item.id}, 'terjual')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-2 py-1 rounded transition">🛒 Jual</button>
+                        <button onclick="prosesKeluar(${item.id}, 'buang')" class="bg-gray-500 hover:bg-gray-600 text-white text-xs px-2 py-1 rounded transition">📤 Out</button>
+                        <button onclick="editBarang(${item.id})" class="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded transition">✏️ Edit</button>
+                        <button onclick="hapusBarang(${item.id})" class="bg-rose-500 hover:bg-rose-600 text-white text-xs px-2 py-1 rounded transition">🗑️ Hapus</button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // Render History Penjualan
+        function renderHistory() {
+            historyBody.innerHTML = '';
+            if(historyData.length === 0) {
+                historyBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">Belum ada riwayat transaksi.</td></tr>`;
+                return;
+            }
+
+            historyData.slice().reverse().forEach(h => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50";
+                tr.innerHTML = `
+                    <td class="p-3 text-xs text-gray-500">${h.waktu}</td>
+                    <td class="p-3 font-medium">${h.nama}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded text-xs ${h.tipe === 'Terjual (Kasir)' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-800'}">
+                            ${h.tipe}
+                        </span>
+                    </td>
+                    <td class="p-3 text-center font-bold">${h.jumlah}</td>
+                    <td class="p-3 font-semibold text-emerald-600">${h.total !== '-' ? formatRupiah(h.total) : '-'}</td>
+                `;
+                historyBody.appendChild(tr);
+            });
+        }
+
+        // Cek Notifikasi (Stok dan Expired)
+        function checkNotifications() {
+            const stokAlertList = document.getElementById('stok-alert-list');
+            const expAlertList = document.getElementById('exp-alert-list');
+            
+            stokAlertList.innerHTML = '';
+            expAlertList.innerHTML = '';
+
+            let stokCount = 0;
+            let expCount = 0;
+
+            barangData.forEach(item => {
+                // 1. Cek Stok Hampir Habis (Batasan <= 5)
+                if (item.jumlah <= 5) {
+                    stokCount++;
+                    const li = document.createElement('li');
+                    li.innerHTML = `Barang <strong>${item.nama}</strong> sisa <strong>${item.jumlah}</strong> pcs lagi!`;
+                    stokAlertList.appendChild(li);
+                }
+
+                // 2. Cek Expired (Batasan <= 30 hari dari sekarang)
+                if (isNearExpired(item.tglExp)) {
+                    expCount++;
+                    const diffDays = getDiffDays(item.tglExp);
+                    const li = document.createElement('li');
+                    li.innerHTML = `Barang <strong>${item.nama}</strong> akan kadaluwarsa dalam <strong>${diffDays} hari</strong> (${item.tglExp})`;
+                    expAlertList.appendChild(li);
+                }
+            });
+
+            document.getElementById('stok-alert-count').innerText = stokCount;
+            document.getElementById('exp-alert-count').innerText = expCount;
+
+            if (stokCount === 0) stokAlertList.innerHTML = `<li class="list-none text-gray-400 italic">Semua stok barang aman.</li>`;
+            if (expCount === 0) expAlertList.innerHTML = `<li class="list-none text-gray-400 italic">Tidak ada barang mendekati kadaluwarsa.</li>`;
+        }
+
+        // Helper hitung sisa hari expired
+        function getDiffDays(targetDate) {
+            const hariIni = new Date();
+            const tglTarget = new Date(targetDate);
+            const diffTime = tglTarget - hariIni;
+            return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        function isNearExpired(targetDate) {
+            const sisaHari = getDiffDays(targetDate);
+            return sisaHari <= 30; // Notifikasi jika berkurang dari atau sama dengan 30 hari
+        }
+
+        // Tambah & Edit Data (CRUD)
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('item-id').value;
+            const nama = document.getElementById('nama').value;
+            const jumlah = parseInt(document.getElementById('jumlah').value);
+            const harga = parseInt(document.getElementById('harga').value);
+            const tglMasuk = document.getElementById('tgl-masuk').value;
+            const tglExp = document.getElementById('tgl-exp').value;
+
+            if (id) {
+                // Mode EDIT
+                const idx = barangData.findIndex(item => item.id == id);
+                barangData[idx] = { ...barangData[idx], nama, jumlah, harga, tglMasuk, tglExp };
+            } else {
+                // Mode TAMBAH BARU
+                const newBarang = {
+                    id: Date.now(),
+                    nama,
+                    jumlah,
+                    harga,
+                    tglMasuk,
+                    tglExp,
+                    keluar: 0,
+                    terjual: 0
+                };
+                barangData.push(newBarang);
+            }
+
+            saveData();
+            resetForm();
+        });
+
+        function editBarang(id) {
+            const item = barangData.find(i => i.id === id);
+            if(item) {
+                document.getElementById('item-id').value = item.id;
+                document.getElementById('nama').value = item.nama;
+                document.getElementById('jumlah').value = item.jumlah;
+                document.getElementById('harga').value = item.harga;
+                document.getElementById('tgl-masuk').value = item.tglMasuk;
+                document.getElementById('tgl-exp').value = item.tglExp;
+
+                document.getElementById('form-title').innerText = "✏️ Edit Detail Barang";
+                document.getElementById('btn-submit').innerText = "Update Data";
+                document.getElementById('btn-batal').classList.remove('hidden');
+            }
+        }
+
+        function hapusBarang(id) {
+            if(confirm("Apakah Anda yakin ingin menghapus barang ini secara permanen dari sistem?")) {
+                barangData = barangData.filter(item => item.id !== id);
+                saveData();
+            }
+        }
+
+        function resetForm() {
+            form.reset();
+            document.getElementById('item-id').value = '';
+            document.getElementById('form-title').innerText = "➕ Tambah Barang Baru";
+            document.getElementById('btn-submit').innerText = "Simpan Barang";
+            document.getElementById('btn-batal').classList.add('hidden');
+        }
+
+        // Fitur Barang Keluar & Penjualan Terjual
+        function prosesKeluar(id, jenis) {
+            const qty = prompt(`Masukkan jumlah barang yang ${jenis === 'terjual' ? 'terjual' : 'keluar (rusak/buang)'} :`, "1");
+            const parsedQty = parseInt(qty);
+
+            if(isNaN(parsedQty) || parsedQty <= 0) return;
+
+            const item = barangData.find(i => i.id === id);
+            if(item) {
+                if(item.jumlah < parsedQty) {
+                    alert(`🚨 Gagal! Stok [${item.nama}] tidak mencukupi. Sisa stok saat ini hanya ${item.jumlah}`);
+                    return;
+                }
+
+                // Kurangi Stok Utama
+                item.jumlah -= parsedQty;
+                
+                // Tambahkan Log Statistik Barang Keluar/Terjual
+                let logTipe = "";
+                let totalPendapatan = "-";
+
+                if (jenis === 'terjual') {
+                    item.terjual = (item.terjual || 0) + parsedQty;
+                    item.keluar = (item.keluar || 0) + parsedQty;
+                    logTipe = "Terjual (Kasir)";
+                    totalPendapatan = parsedQty * item.harga;
+                } else {
+                    item.keluar = (item.keluar || 0) + parsedQty;
+                    logTipe = "Keluar (Rusak/Expired)";
+                }
+
+                // Catat ke Riwayat Penjualan/Transaksi
+                const waktuSkg = new Date().toLocaleString('id-ID');
+                historyData.push({
+                    waktu: waktuSkg,
+                    nama: item.nama,
+                    tipe: logTipe,
+                    jumlah: parsedQty,
+                    total: totalPendapatan
+                });
+
+                saveData();
+            }
+        }
+
+        function clearHistory() {
+            if(confirm("Hapus seluruh catatan riwayat transaksi?")) {
+                historyData = [];
+                saveData();
+            }
+        }
+
+        // Jalankan render awal saat halaman dimuat
+        renderAll();
+    </script>
+</body>
+</html>
